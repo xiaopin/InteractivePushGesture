@@ -143,6 +143,9 @@ static const char kInteractivePushGestureDelegateKey;
                 [delegate.interactiveTransition finishInteractiveTransition];
             } else {
                 [delegate.interactiveTransition cancelInteractiveTransition];
+                // Fix: 当用户取消push手势时,重新启用原生pop手势并及时释放代理对象
+                self.navigationController.delegate = nil;
+                objc_setAssociatedObject(self, &kInteractivePushGestureDelegateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             }
             delegate.touchBeganPoint = CGPointZero;
             break;
