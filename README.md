@@ -9,6 +9,11 @@
 
 通过左滑手势push控制器
 
+## 环境要求
+
+- iOS8.0+
+- Xcode9.3+
+
 ## 演示
 
 [![GIF](./preview.gif)]()
@@ -16,12 +21,12 @@
 ## 用法
 
 - 将 `UIViewController+InteractivePushGesture.{h/m}` 文件拖入项目
-- 在控制器的viewDidLoad中启用push手势并设置代理
+- 在控制器的viewDidLoad中启用push手势并设置代理(可在Storyboard中设置)
 ```ObjC
 self.interactivePushGestureEnabled = YES;
 self.interactivePushGestureDelegate = self;
 ```
-- 实现代理方法返回需要push的控制器
+- 实现代理方法返回需要push的控制器(可在Storyboard中通过拖线设置)
 ```ObjC
 - (UIViewController *)destinationViewControllerFromViewController:(UIViewController *)fromViewController {
     UIViewController *vc = [[UIViewController alloc] init];

@@ -15,9 +15,9 @@
 @interface UIViewController (InteractivePushGesture)
 
 /// 是否启用左滑push手势, 默认 `NO`
-@property (nonatomic, assign, getter=isInteractivePushGestureEnabled) IBInspectable BOOL interactivePushGestureEnabled;
+@property (nonatomic, assign, getter=isInteractivePushGestureEnabled) IBInspectable BOOL interactivePushGestureEnabled NS_AVAILABLE_IOS(8_0);
 /// 代理
-@property (nonatomic, weak) id<UIViewControllerInteractivePushGestureDelegate> interactivePushGestureDelegate;
+@property (nonatomic, weak) IBOutlet id<UIViewControllerInteractivePushGestureDelegate> interactivePushGestureDelegate NS_AVAILABLE_IOS(8_0);
 
 @end
 
