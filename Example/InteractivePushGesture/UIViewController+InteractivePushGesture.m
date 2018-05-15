@@ -66,11 +66,6 @@
     return nil;
 }
 
-- (void)navigationController:(UINavigationController *)navigationController didShowViewController:(UIViewController *)viewController animated:(BOOL)animated {
-    /// 显示完毕后,重置delegate,启用原生pop手势
-    navigationController.delegate = nil;
-}
-
 @end
 
 #pragma mark - 手势代理
@@ -106,7 +101,7 @@ static const char kInteractivePushGestureDelegateKey;
 
 #pragma mark Actions
 
-- (void)handlePanGesture:(UIPanGestureRecognizer *)sender {
+- (void)handleInteractivePushGesture:(UIPanGestureRecognizer *)sender {
     XPNavigationControllerDelegateObject *delegate = objc_getAssociatedObject(self, &kInteractivePushGestureDelegateKey);
     CGPoint currentTouchPoint = [sender locationInView:self.view];
     switch (sender.state) {
@@ -136,23 +131,21 @@ static const char kInteractivePushGestureDelegateKey;
             [delegate.interactiveTransition updateInteractiveTransition:percent];
             break;
         }
-        case UIGestureRecognizerStateEnded:
-        {
-            CGFloat percent = (delegate.touchBeganPoint.x - currentTouchPoint.x) / CGRectGetWidth(self.view.frame);
-            if (percent >= 0.3) {
-                [delegate.interactiveTransition finishInteractiveTransition];
-            } else {
-                [delegate.interactiveTransition cancelInteractiveTransition];
-                // Fix: 当用户取消push手势时,重新启用原生pop手势并及时释放代理对象
-                self.navigationController.delegate = nil;
-                objc_setAssociatedObject(self, &kInteractivePushGestureDelegateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        default: {
+            if (sender.state == UIGestureRecognizerStateEnded || sender.state == UIGestureRecognizerStateCancelled) {
+                CGFloat percent = (delegate.touchBeganPoint.x - currentTouchPoint.x) / CGRectGetWidth(self.view.frame);
+                if (percent >= 0.3) {
+                    [delegate.interactiveTransition finishInteractiveTransition];
+                } else {
+                    [delegate.interactiveTransition cancelInteractiveTransition];
+                    
+                }
             }
-            delegate.touchBeganPoint = CGPointZero;
+            // 重新启用原生pop手势并及时释放代理对象
+            self.navigationController.delegate = nil;
+            objc_setAssociatedObject(self, &kInteractivePushGestureDelegateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             break;
         }
-        default:
-            delegate.touchBeganPoint = CGPointZero;
-            break;
     }
 }
 
@@ -161,11 +154,27 @@ static const char kInteractivePushGestureDelegateKey;
 - (void)setInteractivePushGestureEnabled:(BOOL)enabled {
     objc_setAssociatedObject(self, @selector(isInteractivePushGestureEnabled), @(enabled), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if (enabled) {
-        UIPanGestureRecognizer *panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePanGesture:)];
+        UIPanGestureRecognizer *panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleInteractivePushGesture:)];
         panGesture.delegate = [XPGestureRecognizerDelegateObject shared];
         [self.view addGestureRecognizer:panGesture];
     } else {
-        // TODO: 移除手势(如果存在)
+        SEL sel = @selector(handleInteractivePushGesture:);
+        for (UIGestureRecognizer *gesture in self.view.gestureRecognizers) {
+            if (![gesture isKindOfClass:[UIPanGestureRecognizer class]]) continue;
+            NSArray *targets = [gesture valueForKey:@"targets"];
+            id target = targets.firstObject;
+            if ([target valueForKey:@"target"] == self) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                SEL action = (__bridge void *)[target performSelector:NSSelectorFromString(@"action")];
+#pragma clang diagnostic pop
+                if (action == sel) {
+                    gesture.enabled = NO;
+                    [self.view removeGestureRecognizer:gesture];
+                    break;
+                }
+            }
+        }
     }
 }
 
