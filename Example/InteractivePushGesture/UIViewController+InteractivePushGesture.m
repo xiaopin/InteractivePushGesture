@@ -71,24 +71,38 @@
 #pragma mark - 手势代理
 
 @interface XPGestureRecognizerDelegateObject: NSObject <UIGestureRecognizerDelegate>
-
-+ (instancetype)shared;
+{
+    __weak UIPanGestureRecognizer *_gestureRecognizer;
+}
+- (instancetype)initWithGestureRecognizer:(UIPanGestureRecognizer *)gestureRecognizer;
 
 @end
 
 @implementation XPGestureRecognizerDelegateObject
 
-+ (instancetype)shared {
-    static XPGestureRecognizerDelegateObject *object = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        object = [[XPGestureRecognizerDelegateObject alloc] init];
-    });
-    return object;
+- (instancetype)initWithGestureRecognizer:(UIPanGestureRecognizer *)gestureRecognizer {
+    self = [[XPGestureRecognizerDelegateObject alloc] init];
+    if (self) {
+        _gestureRecognizer = gestureRecognizer;
+    }
+    return self;
+}
+
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer {
+    if (gestureRecognizer == _gestureRecognizer) {
+        CGPoint const velocity = [_gestureRecognizer velocityInView:gestureRecognizer.view];
+        BOOL isHorizontal = fabs(velocity.x) > fabs(velocity.y); // 水平滑动（|x|<|y|则为垂直方向滑动）
+        return (isHorizontal && velocity.x < -30.0 && velocity.y >= 0.0);
+    }
+    return NO;
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
     return YES;
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldBeRequiredToFailByGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer {
+    return (gestureRecognizer == _gestureRecognizer);
 }
 
 @end
@@ -151,12 +165,19 @@ static const char kInteractivePushGestureDelegateKey;
 
 #pragma mark setter & getter
 
+static char const kXPGestureRecognizerDelegateObjectKey = '\0';
+
 - (void)setInteractivePushGestureEnabled:(BOOL)enabled {
     objc_setAssociatedObject(self, @selector(isInteractivePushGestureEnabled), @(enabled), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if (enabled) {
         UIPanGestureRecognizer *panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleInteractivePushGesture:)];
-        panGesture.delegate = [XPGestureRecognizerDelegateObject shared];
+        panGesture.delaysTouchesBegan = YES;
         [self.view addGestureRecognizer:panGesture];
+        
+        XPGestureRecognizerDelegateObject *delegate = [[XPGestureRecognizerDelegateObject alloc] initWithGestureRecognizer:panGesture];
+        panGesture.delegate = delegate;
+        panGesture.delaysTouchesBegan = YES;
+        objc_setAssociatedObject(self, &kXPGestureRecognizerDelegateObjectKey, delegate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     } else {
         SEL sel = @selector(handleInteractivePushGesture:);
         for (UIGestureRecognizer *gesture in self.view.gestureRecognizers) {
@@ -175,6 +196,7 @@ static const char kInteractivePushGestureDelegateKey;
                 }
             }
         }
+        objc_setAssociatedObject(self, &kXPGestureRecognizerDelegateObjectKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
 }
 
