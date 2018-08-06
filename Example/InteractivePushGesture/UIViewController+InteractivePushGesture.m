@@ -46,7 +46,6 @@
 @interface XPNavigationControllerDelegateObject: NSObject <UINavigationControllerDelegate>
 
 @property (nonatomic, strong) UIPercentDrivenInteractiveTransition *interactiveTransition;
-@property (nonatomic, assign) CGPoint touchBeganPoint;
 
 @end
 
@@ -70,7 +69,7 @@
 
 #pragma mark - 手势代理
 
-@interface XPGestureRecognizerDelegateObject: NSObject <UIGestureRecognizerDelegate>
+@interface XPPushGestureRecognizerDelegateObject: NSObject <UIGestureRecognizerDelegate>
 {
     __weak UIPanGestureRecognizer *_gestureRecognizer;
 }
@@ -78,10 +77,10 @@
 
 @end
 
-@implementation XPGestureRecognizerDelegateObject
+@implementation XPPushGestureRecognizerDelegateObject
 
 - (instancetype)initWithGestureRecognizer:(UIPanGestureRecognizer *)gestureRecognizer {
-    self = [[XPGestureRecognizerDelegateObject alloc] init];
+    self = [[XPPushGestureRecognizerDelegateObject alloc] init];
     if (self) {
         _gestureRecognizer = gestureRecognizer;
     }
@@ -109,45 +108,45 @@
 
 #pragma mark -
 
-static const char kInteractivePushGestureDelegateKey;
+static const char kXPNavigationControllerDelegateObjectKey = '\0';
 
 @implementation UIViewController (InteractivePushGesture)
 
 #pragma mark Actions
 
 - (void)handleInteractivePushGesture:(UIPanGestureRecognizer *)sender {
-    XPNavigationControllerDelegateObject *delegate = objc_getAssociatedObject(self, &kInteractivePushGestureDelegateKey);
-    CGPoint currentTouchPoint = [sender locationInView:self.view];
+    XPNavigationControllerDelegateObject *delegate = objc_getAssociatedObject(self, &kXPNavigationControllerDelegateObjectKey);
+    CGPoint translation = [sender translationInView:self.view];
     switch (sender.state) {
         case UIGestureRecognizerStateBegan:
         {
-            NSParameterAssert(self.interactivePushGestureDelegate != nil);
-            NSParameterAssert(self.navigationController != nil);
+            NSParameterAssert(self.interactivePushGestureDelegate);
+            NSParameterAssert(self.navigationController);
             if (![self isInteractivePushGestureEnabled]) {
                 return;
             }
             delegate = [[XPNavigationControllerDelegateObject alloc] init];
             delegate.interactiveTransition = [[UIPercentDrivenInteractiveTransition alloc] init];
-            delegate.touchBeganPoint = currentTouchPoint;
             self.navigationController.delegate = delegate;
-            objc_setAssociatedObject(self, &kInteractivePushGestureDelegateKey, delegate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            objc_setAssociatedObject(self, &kXPNavigationControllerDelegateObjectKey, delegate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             UIViewController *destinationViewController = [self.interactivePushGestureDelegate destinationViewControllerFromViewController:self];
-            NSAssert(destinationViewController != nil, @"`-destinationViewControllerFromViewController:` cann't return nil.");
+            NSAssert(destinationViewController && [destinationViewController isKindOfClass:UIViewController.class],
+                     @"`-destinationViewControllerFromViewController:` can not be nil and must be UIViewController or its subclass.");
             [self.navigationController pushViewController:destinationViewController animated:YES];
             break;
         }
         case UIGestureRecognizerStateChanged:
         {
-            if (CGPointEqualToPoint(delegate.touchBeganPoint, CGPointZero) || currentTouchPoint.x > delegate.touchBeganPoint.x) {
+            if (CGPointEqualToPoint(translation, CGPointZero)) {
                 return;
             }
-            CGFloat percent = (delegate.touchBeganPoint.x - currentTouchPoint.x) / CGRectGetWidth(self.view.frame);
+            CGFloat percent = fabs(translation.x) / CGRectGetWidth(self.view.frame);
             [delegate.interactiveTransition updateInteractiveTransition:percent];
             break;
         }
         default: {
             if (sender.state == UIGestureRecognizerStateEnded || sender.state == UIGestureRecognizerStateCancelled) {
-                CGFloat percent = (delegate.touchBeganPoint.x - currentTouchPoint.x) / CGRectGetWidth(self.view.frame);
+                CGFloat percent = fabs(translation.x) / CGRectGetWidth(self.view.frame);
                 if (percent >= 0.3) {
                     [delegate.interactiveTransition finishInteractiveTransition];
                 } else {
@@ -157,7 +156,7 @@ static const char kInteractivePushGestureDelegateKey;
             }
             // 重新启用原生pop手势并及时释放代理对象
             self.navigationController.delegate = nil;
-            objc_setAssociatedObject(self, &kInteractivePushGestureDelegateKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            objc_setAssociatedObject(self, &kXPNavigationControllerDelegateObjectKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             break;
         }
     }
@@ -165,7 +164,7 @@ static const char kInteractivePushGestureDelegateKey;
 
 #pragma mark setter & getter
 
-static char const kXPGestureRecognizerDelegateObjectKey = '\0';
+static char const kXPPushGestureRecognizerDelegateObjectKey = '\0';
 
 - (void)setInteractivePushGestureEnabled:(BOOL)enabled {
     objc_setAssociatedObject(self, @selector(isInteractivePushGestureEnabled), @(enabled), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -174,10 +173,10 @@ static char const kXPGestureRecognizerDelegateObjectKey = '\0';
         panGesture.delaysTouchesBegan = YES;
         [self.view addGestureRecognizer:panGesture];
         
-        XPGestureRecognizerDelegateObject *delegate = [[XPGestureRecognizerDelegateObject alloc] initWithGestureRecognizer:panGesture];
+        XPPushGestureRecognizerDelegateObject *delegate = [[XPPushGestureRecognizerDelegateObject alloc] initWithGestureRecognizer:panGesture];
         panGesture.delegate = delegate;
         panGesture.delaysTouchesBegan = YES;
-        objc_setAssociatedObject(self, &kXPGestureRecognizerDelegateObjectKey, delegate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(self, &kXPPushGestureRecognizerDelegateObjectKey, delegate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     } else {
         SEL sel = @selector(handleInteractivePushGesture:);
         for (UIGestureRecognizer *gesture in self.view.gestureRecognizers) {
@@ -196,13 +195,12 @@ static char const kXPGestureRecognizerDelegateObjectKey = '\0';
                 }
             }
         }
-        objc_setAssociatedObject(self, &kXPGestureRecognizerDelegateObjectKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(self, &kXPPushGestureRecognizerDelegateObjectKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
 }
 
 - (BOOL)isInteractivePushGestureEnabled {
-    NSNumber *number = objc_getAssociatedObject(self, _cmd);
-    return number ? [number boolValue] : NO;
+    return [objc_getAssociatedObject(self, _cmd) boolValue];
 }
 
 - (void)setInteractivePushGestureDelegate:(id<UIViewControllerInteractivePushGestureDelegate>)delegate {

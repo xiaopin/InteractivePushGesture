@@ -26,7 +26,7 @@
 self.interactivePushGestureEnabled = YES;
 self.interactivePushGestureDelegate = self;
 ```
-- 实现代理方法返回需要push的控制器(可在Storyboard中通过拖线设置)
+- 实现代理方法返回需要push的控制器
 ```ObjC
 - (UIViewController *)destinationViewControllerFromViewController:(UIViewController *)fromViewController {
     UIViewController *vc = [[UIViewController alloc] init];
